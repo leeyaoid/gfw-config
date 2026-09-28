@@ -1,6 +1,7 @@
 /**
  * Clash Verge Rev 全局扩展脚本（mihomo 内核）
  * 策略组：ChatGPT（含 Codex）、Claude（含 Claude Code）、Gemini（含 Antigravity）、Proxy（除 AI 外的境外连接）
+ *         四个功能组只选择地区组（Proxy 另含 auto），具体节点在地区组内选择
  * 地区组：us / hk / jp / tw / sg / eu / other，auto 为全节点测速
  * 分流：本地与北京工业大学（含 VPN、WebVPN）直连 → AI 域名与客户端进程 → Loyalsoldier/clash-rules 白名单模式
  * AI：只选择 AI 可用地区组（默认 us），节点在地区组内手动选定，出口 IP 不随测速跳变
@@ -308,7 +309,8 @@ function main(config, profileName) {
 
   config["proxy-groups"] = [
     ...AI_GROUPS.map(name => ({ name, type: "select", proxies: aiChoices, icon: ICONS[name] })),
-    { name: G.PROXY, type: "select", proxies: [G.AUTO, ...nonEmpty, ...nodes], icon: ICONS.Proxy },
+    // Proxy 只列 auto 和地区组，不列具体节点；节点在地区组内选择
+    { name: G.PROXY, type: "select", proxies: [G.AUTO, ...nonEmpty], icon: ICONS.Proxy },
     // 空地区组指向 REJECT，保持分组完整且不会误走直连
     ...REGION_DISPLAY_ORDER.map(k => ({ name: k, type: "select", proxies: members[k].length ? members[k] : ["REJECT"], icon: ICONS[k] })),
     { name: G.AUTO, type: "url-test", proxies: nodes, url: TEST_URL, interval: 300, timeout: 5000, tolerance: 50, lazy: true, icon: ICONS.auto }
