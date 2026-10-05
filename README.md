@@ -1,8 +1,9 @@
-# Clash Verge Rev 全局扩展脚本
+# Clash Verge Rev 全局扩展脚本与 Loon 配置
 
-适用于 [Clash Verge Rev](https://www.clashverge.dev/)（mihomo 内核）的全局扩展脚本。基于 [Loyalsoldier/clash-rules](https://github.com/Loyalsoldier/clash-rules) 白名单模式，在此之上增加 AI 服务专用分流、校园网直连和 DNS 防泄露设计。
+适用于 [Clash Verge Rev](https://www.clashverge.dev/)（mihomo 内核）的全局扩展脚本，以及按同一思路改写的 [Loon](https://nsloon.app) 配置。基于 [Loyalsoldier/clash-rules](https://github.com/Loyalsoldier/clash-rules) 白名单模式，在此之上增加 AI 服务专用分流、校园网直连和 DNS 防泄露设计。
 
 - 脚本文件：`ClashVerge全局扩展脚本-V2.2-20260928.js`
+- Loon 配置：`Loon-Config-V1.1-20261005.conf`（见[第 14 节](#14-loon-配置)）
 - 测试环境：macOS，Clash Verge Rev 2.5.2，mihomo v1.19.29
 - 入站方式：只开系统代理即可，TUN 模式兼容
 
@@ -21,7 +22,8 @@
 11. [自定义与开关](#11-自定义与开关)
 12. [验证方法](#12-验证方法)
 13. [已知限制](#13-已知限制)
-14. [参考资料](#14-参考资料)
+14. [Loon 配置](#14-loon-配置)
+15. [参考资料](#15-参考资料)
 
 ## 1. 设计目标
 
@@ -316,10 +318,65 @@ WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP：
 - 系统代理不覆盖 UDP 和不读取系统代理的程序。
 - 策略组图标托管在 raw.githubusercontent.com 和 unpkg.com，代理未连通时可能无法显示，不影响分流。
 
-## 14. 参考资料
+## 14. Loon 配置
+
+`Loon-Config-V1.1-20261005.conf` 按本脚本 V2.2 的策略组和分流思路改写，已在 Loon for Mac 0.4.0 上实测导入和分流。
+
+### 14.1 导入方法
+
+1. 在 Loon 中导入配置文件：Mac 版在「Profiles → Import from File」，iPhone 可通过 AirDrop 或 iCloud 把文件发到 Loon 后打开。
+2. 在 Loon 中添加机场订阅。订阅写在配置文件的 `[Remote Proxy]` 里，本文件不包含订阅链接，导入后需自行添加。
+3. 进入 `us` 组固定一个节点；`Proxy` 建议选 `auto` 或 `hk`。
+
+### 14.2 与 Clash 版的对应
+
+| 项目 | Loon 配置的实现 |
+| --- | --- |
+| 策略组 | 与 V2.2 相同：`ChatGPT`、`Claude`、`Gemini`（只能选 us、jp、sg、tw、eu）、`Proxy`（auto 加 7 个地区组）、地区组、`auto` |
+| 节点归类 | 用 Loon「筛选节点」（`NameRegex`）实现与 V2.2 相同的识别规则和优先级，每个节点只归入一个地区；用真实订阅核对，各组节点与 V2.2 一致 |
+| 规则集 | Loyalsoldier/surge-rules 的 RULE-SET 版本，与 clash-rules 同源，Loon 可直接识别 |
+| AI 域名 | V2.2 内置核心域名加 MetaCubeX 规则集快照（2026-10-05），写在本地规则中，不会自动更新 |
+| 北工大 | `bjut.edu.cn` 直连，系统 DNS 解析，不经过 Loon（`skip-proxy`），返回真实 IP（`real-ip`） |
+| 隐藏 IP | 只用 IPv4；禁用 STUN，防止 WebRTC 泄露；节点不支持 UDP 时拒绝，不回落直连 |
+
+### 14.3 与 Clash 版的差异
+
+| 项目 | 原因与做法 |
+| --- | --- |
+| 规则优先级 | Loon 中目标为域名时先匹配全部域名类规则，再匹配 IP 类规则；本地规则优先于订阅规则，与文件中的位置无关 |
+| DNS | Loon 不能让 DNS 查询经过代理，因此未收录的域名不在本地解析，直接交给 `Proxy` 由节点远程解析，DNS 不泄露；代价是未收录的境内小网站也会走代理 |
+| 中国大陆 IP 规则集（cncidr） | 默认关闭，可在 Loon 中开启；开启后未收录的境内网站会先在本地解析再直连 |
+| 进程规则 | 只有 macOS 版 Loon 支持。进程名必须精确匹配（不区分大小写，不支持通配符），因此逐一列出 AI 应用的各个进程名；不支持按安装路径匹配 |
+| AI 进程的境内例外 | 本地进程规则会先于订阅的境内域名列表生效，因此用 `AND,((OR,(进程…)),(NOT,((GEOIP,CN)))),AI组` 排除解析为中国大陆 IP 的连接；这部分连接会用国内 DoH 做一次本地 DNS 查询 |
+| 常用软件直连（applications） | 依赖进程名，iOS 上无法使用，已去掉 |
+| 图标 | Loon 不显示 SVG 图标，Claude、Gemini 使用 LobeHub 的 PNG 版本 |
+
+### 14.4 实测结果（Loon for Mac 0.4.0）
+
+| 项目 | 结果 |
+| --- | --- |
+| 导入 | 12 个策略组加载成功；10 组规则共 326,464 条，远程规则集全部下载成功 |
+| AI | ChatGPT、Claude、Gemini、Google 登录走美国节点，`/cdn-cgi/trace` 显示 `loc=US` |
+| AI 客户端进程 | Claude 桌面版的统计上报（datadoghq.com）走 Claude 组；以 AI 进程名访问百度、B 站、北工大时直连 |
+| 其他境外 | Google、GitHub、未收录网站走 `Proxy` |
+| 直连 | 百度、北工大（含 WebVPN）、IEEE、ScienceDirect、Apple 直连 |
+| 广告 | 广告域名在 DNS 阶段被拦截 |
+| DNS | 全部使用加密 DoH；未收录的境外域名不在本地解析 |
+
+### 14.5 已知限制
+
+- iOS 版 Loon 不支持进程规则，AI 应用只能靠域名分流；是否接受这些规则行未在 iOS 上验证。
+- iOS 同一时间只能运行一个 VPN，北工大 VPN 客户端（MotionPro）与 Loon 不能同时开启；WebVPN 不受影响。
+- 校园 VPN 客户端的进程名（MotionPro、EasyConnect、aTrust 等）未在真机上核实。
+- 某地区没有节点时空分组的表现未验证。
+- Loon 与 Clash Verge 不要同时运行，否则流量会经过两层代理。
+
+## 15. 参考资料
 
 - [Loyalsoldier/clash-rules](https://github.com/Loyalsoldier/clash-rules)：规则集及白名单模式
 - [Clash Verge Rev 文档：扩展脚本](https://www.clashverge.dev/guide/script.html)
 - [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat)：AI 服务规则集
 - [mihomo 文档](https://wiki.metacubex.one/)：规则、DNS、策略组配置说明
+- [Loon 官方手册](https://github.com/Loon0x00/LoonManual)：Loon 配置语法
+- [Loyalsoldier/surge-rules](https://github.com/Loyalsoldier/surge-rules)：Loon 使用的规则集（与 clash-rules 同源）
 - [Koolson/Qure](https://github.com/Koolson/Qure)、[lobehub/lobe-icons](https://github.com/lobehub/lobe-icons)：策略组图标
