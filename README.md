@@ -322,11 +322,25 @@ WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP：
 
 `Loon-Config-V1.1-20261005.conf` 按本脚本 V2.2 的策略组和分流思路改写，已在 Loon for Mac 0.4.0 上实测导入和分流。
 
-### 14.1 导入方法
+### 14.1 导入方法（配置与节点分开）
 
-1. 在 Loon 中导入配置文件：Mac 版在「Profiles → Import from File」，iPhone 可通过 AirDrop 或 iCloud 把文件发到 Loon 后打开。
-2. 在 Loon 中添加机场订阅。订阅写在配置文件的 `[Remote Proxy]` 里，本文件不包含订阅链接，导入后需自行添加。
+Loon 的订阅节点写在配置文件的 `[Remote Proxy]` 段里。直接导入不含订阅的配置文件，会替换掉当前配置，节点随之消失。为此，配置文件放在秘密 Gist 上，通过链接导入，并使用 Loon 的「替换并保留节点和证书」功能，使配置更新与节点互不影响。
+
+- 配置链接：`https://gist.githubusercontent.com/leeyaoid/26aff17b020bbb75b7d71ca88dd8f8c5/raw/gfw-loon.conf`
+- 该链接始终指向最新版本；Gist 不公开列出，但持有链接的人可以访问。文件中不含订阅链接。
+
+**首次使用**
+
+1. Loon「配置 → 从 URL 导入」，填入上面的配置链接，选择「作为新配置添加」。
+2. 切换到新配置 `gfw-loon.conf`，在「节点」中添加机场订阅（只需添加一次）。
 3. 进入 `us` 组固定一个节点；`Proxy` 建议选 `auto` 或 `hk`。
+
+**以后更新配置**
+
+1. 再次「从 URL 导入」同一个链接，提示配置已存在时选「替换使用中的配置」。
+2. 在随后的提示中选择 **「替换并保留节点和证书」**，不要选「完全覆盖」。
+
+已在 Loon for Mac 0.4.0 上实测：替换后规则和策略组更新为最新版本，订阅节点和分流均正常。
 
 ### 14.2 与 Clash 版的对应
 
@@ -337,7 +351,7 @@ WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP：
 | 规则集 | Loyalsoldier/surge-rules 的 RULE-SET 版本，与 clash-rules 同源，Loon 可直接识别 |
 | AI 域名 | V2.2 内置核心域名加 MetaCubeX 规则集快照（2026-10-05），写在本地规则中，不会自动更新 |
 | 北工大 | `bjut.edu.cn` 直连，系统 DNS 解析，不经过 Loon（`skip-proxy`），返回真实 IP（`real-ip`） |
-| 隐藏 IP | 只用 IPv4；禁用 STUN，防止 WebRTC 泄露；节点不支持 UDP 时拒绝，不回落直连 |
+| 隐藏 IP | 只用 IPv4（Loon 保存时会写成 `v4-only`）；禁用 STUN，防止 WebRTC 泄露；节点不支持 UDP 时拒绝，不回落直连 |
 
 ### 14.3 与 Clash 版的差异
 
