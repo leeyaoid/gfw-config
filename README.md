@@ -2,7 +2,7 @@
 
 适用于 [Clash Verge Rev](https://www.clashverge.dev/)（mihomo 内核）的全局扩展脚本，以及按同一思路改写的 [Loon](https://nsloon.app) 配置。基于 [Loyalsoldier/clash-rules](https://github.com/Loyalsoldier/clash-rules) 白名单模式，在此之上增加 AI 服务专用分流、校园网直连和 DNS 防泄露设计。
 
-- 脚本文件：`ClashVerge全局扩展脚本-V2.3-20261005.js`
+- 脚本文件：`ClashVerge全局扩展脚本-V2.4-20261005.js`
 - Loon 配置：`Loon-Config-V1.4-20261005.conf`（见[第 14 节](#14-loon-配置)）
 - 测试环境：macOS，Clash Verge Rev 2.5.2，mihomo v1.19.29
 - 入站方式：只开系统代理即可，TUN 模式兼容
@@ -266,7 +266,7 @@ export no_proxy=localhost,127.0.0.1,::1,.local NO_PROXY=localhost,127.0.0.1,::1,
 
 ### 10.3 WebRTC
 
-WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP：
+WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP。开启 TUN 时，脚本的 `blockStun` 会拦截 STUN 请求（对应 Loon 的 `disable-stun`）；只用系统代理时，需要在浏览器中处理：
 
 - Chrome：安装 Google 官方扩展 WebRTC Network Limiter，选择“使用代理服务器”。
 - Firefox：在 `about:config` 中将 `media.peerconnection.ice.proxy_only` 设为 `true`。
@@ -288,6 +288,7 @@ WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP：
 | `academicDirect` | `true` | 学术数据库直连 |
 | `fakeIp` | `false` | Fake-IP DNS 模式，仅在开启 TUN 时考虑 |
 | `sniff` | `false` | 流量嗅探，仅在开启 TUN 时考虑；开启后跳过校园网和局域网地址 |
+| `blockStun` | `true` | 拦截 STUN（UDP 3478、19302–19309），防止 WebRTC 泄露真实 IP；只有开启 TUN 时 UDP 流量才会经过 mihomo；音视频通话异常时改为 `false` |
 
 ### 11.2 自定义列表
 
@@ -321,7 +322,7 @@ WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP：
 
 ## 14. Loon 配置
 
-`Loon-Config-V1.4-20261005.conf` 按本脚本 V2.3 的策略组和分流思路改写，已在 Loon for Mac 0.4.0 上实测导入和分流。
+`Loon-Config-V1.4-20261005.conf` 按本脚本 V2.4 的策略组和分流思路改写，已在 Loon for Mac 0.4.0 上实测导入和分流。
 
 ### 14.1 导入方法（配置与节点分开）
 
@@ -347,8 +348,8 @@ Loon 的订阅节点写在配置文件的 `[Remote Proxy]` 段里。直接导入
 
 | 项目 | Loon 配置的实现 |
 | --- | --- |
-| 策略组 | 与 V2.3 相同：`ChatGPT`、`Claude`、`Gemini`（只能选 us、jp、sg、tw、eu）、`Proxy`（auto 加 7 个地区组）、地区组、`auto` |
-| 节点归类 | 用 Loon「筛选节点」（`NameRegex`）实现与 V2.3 相同的识别规则和优先级，每个节点只归入一个地区；用真实订阅核对，各组节点与脚本一致 |
+| 策略组 | 与 V2.4 相同：`ChatGPT`、`Claude`、`Gemini`（只能选 us、jp、sg、tw、eu）、`Proxy`（auto 加 7 个地区组）、地区组、`auto` |
+| 节点归类 | 用 Loon「筛选节点」（`NameRegex`）实现与 V2.4 相同的识别规则和优先级，每个节点只归入一个地区；用真实订阅核对，各组节点与脚本一致 |
 | 规则集 | Loyalsoldier/surge-rules 的 RULE-SET 版本，与 clash-rules 同源，Loon 可直接识别 |
 | AI 域名 | 脚本内置核心域名加 MetaCubeX 规则集快照（2026-10-05），写在本地规则中，不会自动更新 |
 | 北工大 | `bjut.edu.cn` 直连，系统 DNS 解析，不经过 Loon（`skip-proxy`），返回真实 IP（`real-ip`） |
@@ -365,7 +366,7 @@ Loon 的订阅节点写在配置文件的 `[Remote Proxy]` 段里。直接导入
 | 进程规则 | 只有 macOS 版 Loon 支持。进程名必须精确匹配（不区分大小写，不支持通配符），因此逐一列出 AI 应用的各个进程名；不支持按安装路径匹配 |
 | AI 进程的境内例外 | 本地进程规则会先于订阅的境内域名列表生效，因此用 `AND,((OR,(进程…)),(NOT,((GEOIP,CN)))),AI组` 排除解析为中国大陆 IP 的连接；这部分连接会用国内 DoH 做一次本地 DNS 查询 |
 | 常用软件直连（applications） | 依赖进程名，iOS 上无法使用，已去掉 |
-| 图标 | Loon 不显示 SVG 图标，Claude、Gemini 使用 LobeHub 的 PNG 版本 |
+| 图标 | Loon 不显示 SVG 图标，Claude、Gemini 使用 LobeHub 的 PNG 版本（Clash 脚本自 V2.4 起也改用 PNG） |
 | 进程规则的缓存 | 实测 Loon 会把进程规则的匹配结果按目标网站缓存：某个进程命中进程规则后，其他程序访问同一网站也沿用该结果，直到重新加载配置。进程级 `DIRECT` 可能让其他程序直连并暴露真实 IP，因此坚果云在 Loon 中只按域名直连；AI 进程规则指向的都是代理组，不会造成直连 |
 
 ### 14.4 让所有 App 使用 Loon 的端口

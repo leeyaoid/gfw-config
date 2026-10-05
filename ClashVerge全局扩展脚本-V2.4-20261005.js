@@ -12,6 +12,7 @@
 // ================= 开关 =================
 const OPTIONS = {
   blockAds: true, // Loyalsoldier reject 广告拦截；个别网站异常时改为 false
+  blockStun: true, // 拦截 STUN（UDP 3478、19302-19309），防止 WebRTC 泄露真实 IP；仅 TUN 模式下有流量经过，音视频通话异常时改为 false
   academicDirect: true, // 学术数据库直连，保留校园 IP 授权
   fakeIp: false, // 仅在开启 TUN 时考虑；只用系统代理时保持 false
   sniff: false // 仅在开启 TUN 时考虑
@@ -42,11 +43,11 @@ const TEST_URL = "https://www.gstatic.com/generate_204";
 
 // 策略组图标
 const QURE_ICON_BASE = "https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color";
-const LOBEHUB_ICON_BASE = "https://unpkg.com/@lobehub/icons-static-svg@1.90.0/icons";
+const LOBEHUB_ICON_BASE = "https://unpkg.com/@lobehub/icons-static-png@1.90.0/light"; // PNG：各客户端（含 Loon）都能显示
 const ICONS = {
   ChatGPT: `${QURE_ICON_BASE}/ChatGPT.png`,
-  Claude: `${LOBEHUB_ICON_BASE}/claude-color.svg`,
-  Gemini: `${LOBEHUB_ICON_BASE}/gemini-color.svg`,
+  Claude: `${LOBEHUB_ICON_BASE}/claude-color.png`,
+  Gemini: `${LOBEHUB_ICON_BASE}/gemini-color.png`,
   Proxy: `${QURE_ICON_BASE}/Proxy.png`,
   us: `${QURE_ICON_BASE}/United_States.png`,
   hk: `${QURE_ICON_BASE}/Hong_Kong.png`,
@@ -192,6 +193,8 @@ const RULES = [
   ...LOCAL_DOMAINS.map(d => `DOMAIN-SUFFIX,${d},DIRECT`),
   "DOMAIN-REGEX,^[^.]+$,DIRECT", // 无点号的主机名，如 nas、router
   ...[...LOCAL_CIDRS, ...EXTRA_DIRECT_CIDRS].map(c => cidrRule(c, "DIRECT")),
+  // 拦截 STUN，防止 WebRTC 绕过代理暴露真实 IP（对应 Loon 的 disable-stun）
+  ...(OPTIONS.blockStun ? ["AND,((NETWORK,UDP),(OR,((DST-PORT,3478),(DST-PORT,19302-19309)))),REJECT"] : []),
   // 2. 北京工业大学（含 VPN、WebVPN）、校园 VPN 客户端、坚果云、学术数据库
   ...CAMPUS_ALL.map(d => `DOMAIN-SUFFIX,${d},DIRECT`),
   `PROCESS-NAME-REGEX,${CAMPUS_VPN_PROCESS},DIRECT`,
