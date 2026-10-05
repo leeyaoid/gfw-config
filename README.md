@@ -3,7 +3,7 @@
 适用于 [Clash Verge Rev](https://www.clashverge.dev/)（mihomo 内核）的全局扩展脚本，以及按同一思路改写的 [Loon](https://nsloon.app) 配置。基于 [Loyalsoldier/clash-rules](https://github.com/Loyalsoldier/clash-rules) 白名单模式，在此之上增加 AI 服务专用分流、校园网直连和 DNS 防泄露设计。
 
 - 脚本文件：`ClashVerge全局扩展脚本-V2.2-20260928.js`
-- Loon 配置：`Loon-Config-V1.2-20261005.conf`（见[第 14 节](#14-loon-配置)）
+- Loon 配置：`Loon-Config-V1.3-20261005.conf`（见[第 14 节](#14-loon-配置)）
 - 测试环境：macOS，Clash Verge Rev 2.5.2，mihomo v1.19.29
 - 入站方式：只开系统代理即可，TUN 模式兼容
 
@@ -320,7 +320,7 @@ WebRTC 使用 UDP，不经过系统代理，可能暴露真实 IP：
 
 ## 14. Loon 配置
 
-`Loon-Config-V1.2-20261005.conf` 按本脚本 V2.2 的策略组和分流思路改写，已在 Loon for Mac 0.4.0 上实测导入和分流。
+`Loon-Config-V1.3-20261005.conf` 按本脚本 V2.2 的策略组和分流思路改写，已在 Loon for Mac 0.4.0 上实测导入和分流。
 
 ### 14.1 导入方法（配置与节点分开）
 
@@ -352,7 +352,7 @@ Loon 的订阅节点写在配置文件的 `[Remote Proxy]` 段里。直接导入
 | AI 域名 | V2.2 内置核心域名加 MetaCubeX 规则集快照（2026-10-05），写在本地规则中，不会自动更新 |
 | 北工大 | `bjut.edu.cn` 直连，系统 DNS 解析，不经过 Loon（`skip-proxy`），返回真实 IP（`real-ip`） |
 | 隐藏 IP | 只用 IPv4（Loon 保存时会写成 `v4-only`）；禁用 STUN，防止 WebRTC 泄露；节点不支持 UDP 时拒绝，不回落直连 |
-| 本机代理端口 | HTTP `7890`、SOCKS5 `7891`，与 Clash 一致，只监听 127.0.0.1。HTTP 端口不接受 SOCKS 请求，SOCKS5 须用 7891 |
+| 本机代理端口 | HTTP `7891`、SOCKS5 `7892`，只监听 127.0.0.1，与 Clash 的 `7890` 分开、互不冲突。HTTP 端口不接受 SOCKS 请求，SOCKS5 须用 7892 |
 
 ### 14.3 与 Clash 版的差异
 
@@ -366,11 +366,28 @@ Loon 的订阅节点写在配置文件的 `[Remote Proxy]` 段里。直接导入
 | 常用软件直连（applications） | 依赖进程名，iOS 上无法使用，已去掉 |
 | 图标 | Loon 不显示 SVG 图标，Claude、Gemini 使用 LobeHub 的 PNG 版本 |
 
-### 14.4 Claude Desktop 与代理端口
+### 14.4 让所有 App 使用 Loon 的端口
 
-Claude Desktop 在**启动时**读取一次系统代理，并把结果固定给之后启动的所有 Claude Code 会话使用；代理不可用时请求直接失败，不会改为直连。日志中对应的记录为 `[CCD] Resolved system proxy for Code sessions: http://127.0.0.1:7890`。
+Loon 连接后会接管本机的默认路由，没有单独设置代理的 App 都会经过 Loon。需要注意的是**已经固定了代理地址**的 App：它们会继续连接旧端口。
 
-因此，如果 Claude Desktop 是在 Clash 开启时启动的，之后改用 Loon，Claude Code 仍会连接 Clash 的 7890 端口而失败。Loon 配置把本机代理端口设为与 Clash 相同的 7890 后，无论由哪个工具提供 7890，Claude Code 都能连通，切换工具时不必重启 Claude Desktop。
+1. **系统代理**：打开 Loon 主界面右上角的「系统代理」开关。之后读取系统代理的 App（浏览器、Claude Desktop、ChatGPT 等）使用 `127.0.0.1:7891` / `7892`。
+2. **Claude Desktop**：它在**启动时**读取一次系统代理，并固定给之后的所有 Claude Code 会话使用；代理不可用时请求直接失败，不会改为直连（日志记录为 `[CCD] Resolved system proxy for Code sessions: …`）。因此在 Clash 和 Loon 之间切换后，需要完全退出（`⌘Q`）并重新打开 Claude Desktop。
+3. **终端**：在 `~/.zshrc` 中按端口是否可用自动选择代理，优先 Loon，其次 Clash，都未运行则不设代理：
+
+```bash
+if nc -z -G 1 127.0.0.1 7891 >/dev/null 2>&1; then
+  __http_port=7891; __socks_port=7892
+elif nc -z -G 1 127.0.0.1 7890 >/dev/null 2>&1; then
+  __http_port=7890; __socks_port=7890
+fi
+if [ -n "$__http_port" ]; then
+  export http_proxy=http://127.0.0.1:$__http_port https_proxy=http://127.0.0.1:$__http_port all_proxy=socks5h://127.0.0.1:$__socks_port
+  export HTTP_PROXY=$http_proxy HTTPS_PROXY=$https_proxy ALL_PROXY=$all_proxy
+  export no_proxy=localhost,127.0.0.1,::1,.local
+  export NO_PROXY=$no_proxy
+fi
+unset __http_port __socks_port
+```
 
 ### 14.5 实测结果（Loon for Mac 0.4.0）
 
@@ -390,7 +407,7 @@ Claude Desktop 在**启动时**读取一次系统代理，并把结果固定给�
 - iOS 同一时间只能运行一个 VPN，北工大 VPN 客户端（MotionPro）与 Loon 不能同时开启；WebVPN 不受影响。
 - 校园 VPN 客户端的进程名（MotionPro、EasyConnect、aTrust 等）未在真机上核实。
 - 某地区没有节点时空分组的表现未验证。
-- Loon 与 Clash Verge 不能同时运行：两者都要占用 7890 端口，且同时运行时流量会经过两层代理。
+- 不建议 Loon 与 Clash Verge 同时运行：端口已分开不会冲突，但两者会争夺系统代理设置，流量也可能经过两层代理。
 
 ## 15. 参考资料
 
