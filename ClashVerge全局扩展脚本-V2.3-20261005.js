@@ -30,6 +30,9 @@ const ACADEMIC_DOMAINS = [
   "clarivate.com", "scopus.com", "jstor.org", "iop.org", "aps.org", "acs.org", "rsc.org",
   "oup.com", "cambridge.org", "proquest.com", "ebsco.com", "ebscohost.com", "emerald.com", "siam.org"
 ];
+// 国内应用直连：坚果云（域名与客户端进程）
+const APP_DIRECT_DOMAINS = ["jianguoyun.com"];
+const APP_DIRECT_PROCESS = "(?i)^(nutstore|nutstorefilesd)(\\.exe)?$";
 const EXTRA_DIRECT_DOMAINS = [];
 const EXTRA_DIRECT_CIDRS = [];
 const EXTRA_PROXY_DOMAINS = [];
@@ -189,9 +192,11 @@ const RULES = [
   ...LOCAL_DOMAINS.map(d => `DOMAIN-SUFFIX,${d},DIRECT`),
   "DOMAIN-REGEX,^[^.]+$,DIRECT", // 无点号的主机名，如 nas、router
   ...[...LOCAL_CIDRS, ...EXTRA_DIRECT_CIDRS].map(c => cidrRule(c, "DIRECT")),
-  // 2. 北京工业大学（含 VPN、WebVPN）、校园 VPN 客户端、学术数据库
+  // 2. 北京工业大学（含 VPN、WebVPN）、校园 VPN 客户端、坚果云、学术数据库
   ...CAMPUS_ALL.map(d => `DOMAIN-SUFFIX,${d},DIRECT`),
   `PROCESS-NAME-REGEX,${CAMPUS_VPN_PROCESS},DIRECT`,
+  ...APP_DIRECT_DOMAINS.map(d => `DOMAIN-SUFFIX,${d},DIRECT`),
+  `PROCESS-NAME-REGEX,${APP_DIRECT_PROCESS},DIRECT`,
   ...ACADEMIC.map(d => `DOMAIN-SUFFIX,${d},DIRECT`),
   // 3. 自定义代理域名
   ...EXTRA_PROXY_DOMAINS.map(d => `DOMAIN-SUFFIX,${d},${G.PROXY}`),
@@ -222,7 +227,7 @@ const RULES = [
 // ================= DNS =================
 const DNS_POLICY = { "*": "system" }; // "*" 只匹配无点号的单级主机名
 for (const d of [...LOCAL_DOMAINS, ...CAMPUS_ALL]) DNS_POLICY["+." + d] = "system";
-for (const d of ACADEMIC) DNS_POLICY["+." + d] = DOMESTIC_DNS;
+for (const d of [...APP_DIRECT_DOMAINS, ...ACADEMIC]) DNS_POLICY["+." + d] = DOMESTIC_DNS;
 for (const group of AI_GROUPS) {
   for (const d of AI_DOMAINS[group]) DNS_POLICY["+." + d] = foreignDns(group);
   DNS_POLICY["rule-set:" + aiSetName(group)] = foreignDns(group);
