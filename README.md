@@ -2,7 +2,8 @@
 
 一份脚本同时用于三个 mihomo 内核客户端：[Clash Verge Rev](https://www.clashverge.dev/) 的「全局扩展脚本」，以及 [FlClash](https://flclash.cc/) 和 [clash.md 的 Clash](https://clash.md/) 的「覆写脚本」。基于 [Loyalsoldier/clash-rules](https://github.com/Loyalsoldier/clash-rules) 白名单模式，在此之上增加 AI 服务专用分流、常用服务分流、校园网直连和 DNS 防泄露设计。
 
-- 脚本文件：`Clash-Global-Extension-Script-V3.1-20261107.js`
+- 脚本文件：[`ClashGlobalExtensionScript.js`](ClashGlobalExtensionScript.js)（文件名固定，更新只改内容，版本记录见 Git 提交历史）
+- 原始地址：`https://raw.githubusercontent.com/leeyaoid/gfw-config/main/ClashGlobalExtensionScript.js`
 - 适用平台：电脑（macOS、Windows、Linux）、Android（FlClash）、iPhone / iPad / Mac（clash.md 的 Clash）
 - 入站方式：电脑只开系统代理即可，TUN 兼容；手机端始终以 VPN / 隧道方式接管流量
 
