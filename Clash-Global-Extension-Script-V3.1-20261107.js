@@ -1,5 +1,5 @@
 /**
- * Clash 全局扩展脚本 / 覆写脚本 V3.0（mihomo 内核）
+ * Clash 全局扩展脚本 / 覆写脚本 V3.1（mihomo 内核）
  * 适用客户端：Clash Verge Rev（全局扩展脚本）、FlClash（覆写脚本）、clash.md 的 Clash（覆写脚本）
  * 策略组：
  *   AI      ChatGPT（含 Codex）、Claude（含 Claude Code）、Gemini（含 Antigravity），默认 sg
@@ -7,7 +7,7 @@
  *   服务    YouTube、Netflix、Disney+、Spotify、TikTok、Bilibili、Telegram、X、GitHub、Microsoft、Apple、Steam
  *   地区    us / hk / jp / tw / sg / kr / eu / other，auto 为全节点测速
  *   功能组只选择地区组（不列具体节点），具体节点在地区组内选择
- * 分流：本地与北京工业大学（含 VPN、WebVPN）直连 → AI 域名与客户端进程 → 广告拦截 → 各服务 → Loyalsoldier 白名单模式
+ * 分流：本地与北京工业大学（含 VPN、WebVPN）直连 → AI 域名与客户端进程 → 广告拦截 → 国内 App 直连 → 各服务 → Loyalsoldier 白名单模式
  * DNS：境外域名经代理加密解析；境内域名用国内 DoH；本地与校园网用系统 DNS
  * 入站：电脑只开系统代理即可，TUN 兼容；手机端（Android VPN、iOS 隧道）相当于 TUN，默认开启 Fake-IP 与嗅探
  * 运行环境：只用同步代码；FlClash 不传第二个参数（配置名），clash.md 不保证提供 console
@@ -39,6 +39,41 @@ const ACADEMIC_DOMAINS = [
 const APP_DIRECT_DOMAINS = ["jianguoyun.com"];
 const APP_DIRECT_PROCESS = "(?i)^(nutstore|nutstorefilesd)(\\.exe)?$";
 const APP_DIRECT_PACKAGES = ["nutstore.android"];
+// 国内 App 直连（Android 按包名）：App 的全部连接直连，Loyalsoldier proxy、google 列表中的境外域名除外。
+// 覆盖域名列表收录不到的连接：第三方 SDK 域名、HTTPDNS 直接用 IP 连接、新上线的域名等
+const CN_APP_PACKAGES = [
+  "com.xingin.xhs",              // 小红书
+  "com.tencent.mm",              // 微信
+  "com.tencent.mobileqq",        // QQ
+  "com.tencent.wework",          // 企业微信
+  "com.eg.android.AlipayGphone", // 支付宝
+  "com.unionpay",                // 云闪付
+  "com.taobao.taobao",           // 淘宝
+  "com.tmall.wireless",          // 天猫
+  "com.taobao.idlefish",         // 闲鱼
+  "com.jingdong.app.mall",       // 京东
+  "com.xunmeng.pinduoduo",       // 拼多多
+  "com.sankuai.meituan",         // 美团
+  "com.dianping.v1",             // 大众点评
+  "me.ele",                      // 饿了么
+  "com.ss.android.ugc.aweme",    // 抖音
+  "com.smile.gifmaker",          // 快手
+  "com.ss.android.article.news", // 今日头条
+  "com.sina.weibo",              // 微博
+  "com.zhihu.android",           // 知乎
+  "com.baidu.searchbox",         // 百度
+  "com.baidu.netdisk",           // 百度网盘
+  "com.autonavi.minimap",        // 高德地图
+  "com.sdu.didi.psnger",         // 滴滴出行
+  "com.MobileTicket",            // 铁路 12306
+  "ctrip.android.view",          // 携程
+  "com.netease.cloudmusic",      // 网易云音乐
+  "com.tencent.qqmusic",         // QQ 音乐
+  "com.alibaba.android.rimet",   // 钉钉
+  "com.ss.android.lark"          // 飞书
+];
+// 国内 App 补充域名集（MetaCubeX）：直连并用国内 DNS，弥补 Loyalsoldier direct 未收录的域名（iOS 无法按包名分流时依赖这里）
+const CN_SITE_SETS = ["xiaohongshu"];
 const EXTRA_DIRECT_DOMAINS = [];
 const EXTRA_DIRECT_CIDRS = [];
 const EXTRA_PROXY_DOMAINS = [];
@@ -218,6 +253,8 @@ for (const group of AI_GROUPS) {
   RULE_PROVIDERS[processSetName(group)] = { type: "inline", behavior: "classical", payload: AI_PROCESSES[group] };
 }
 for (const set of PROXY_SETS) RULE_PROVIDERS[siteSetName(set)] = siteProvider(set);
+for (const set of CN_SITE_SETS) RULE_PROVIDERS[siteSetName(set)] = siteProvider(set);
+if (CN_APP_PACKAGES.length) RULE_PROVIDERS["process-cn-apps"] = { type: "inline", behavior: "classical", payload: CN_APP_PACKAGES.map(p => `PROCESS-NAME,${p}`) };
 for (const s of SERVICES) {
   for (const set of [...(s.directSets || []), ...(s.sets || [])]) RULE_PROVIDERS[siteSetName(set)] = siteProvider(set);
   for (const set of s.ipSets || []) RULE_PROVIDERS[ipSetName(set)] = ipProvider(set);
@@ -268,9 +305,12 @@ const RULES = [
   "RULE-SET,applications,DIRECT",
   "RULE-SET,private,DIRECT",
   ...(OPTIONS.blockAds ? ["RULE-SET,reject,REJECT"] : []),
-  // 7. 各服务（广告拦截之后，google、proxy、direct 列表之前）
+  // 7. 国内 App：补充域名集直连；Android 上按包名整体直连（已知境外域名除外）
+  ...CN_SITE_SETS.map(set => `RULE-SET,${siteSetName(set)},DIRECT`),
+  ...(CN_APP_PACKAGES.length ? ["AND,((RULE-SET,process-cn-apps),(NOT,((RULE-SET,proxy))),(NOT,((RULE-SET,google)))),DIRECT"] : []),
+  // 8. 各服务（广告拦截之后，google、proxy、direct 列表之前）
   ...SERVICE_RULES,
-  // 8. Loyalsoldier 白名单模式其余部分（Apple 境内可直连域名交给 Apple 组）
+  // 9. Loyalsoldier 白名单模式其余部分（Apple 境内可直连域名交给 Apple 组）
   `RULE-SET,icloud,${SVC.Apple}`,
   `RULE-SET,apple,${SVC.Apple}`,
   `RULE-SET,google,${G.PROXY}`,
@@ -293,9 +333,10 @@ for (const group of AI_GROUPS) {
   for (const d of AI_DOMAINS[group]) DNS_POLICY["+." + d] = foreignDns(group);
   DNS_POLICY["rule-set:" + aiSetName(group)] = foreignDns(group);
 }
-// 境内域名：Loyalsoldier 境内列表、Bilibili、Microsoft / Steam 的境内部分
+// 境内域名：Loyalsoldier 境内列表、国内 App 补充域名集、Bilibili、Microsoft / Steam 的境内部分
 const DOMESTIC_SETS = [
   "private", "direct", "apple", "icloud",
+  ...CN_SITE_SETS.map(siteSetName),
   siteSetName("bilibili"),
   ...SERVICES.flatMap(s => (s.directSets || []).map(siteSetName))
 ];

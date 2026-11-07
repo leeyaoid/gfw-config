@@ -2,7 +2,7 @@
 
 一份脚本同时用于三个 mihomo 内核客户端：[Clash Verge Rev](https://www.clashverge.dev/) 的「全局扩展脚本」，以及 [FlClash](https://flclash.cc/) 和 [clash.md 的 Clash](https://clash.md/) 的「覆写脚本」。基于 [Loyalsoldier/clash-rules](https://github.com/Loyalsoldier/clash-rules) 白名单模式，在此之上增加 AI 服务专用分流、常用服务分流、校园网直连和 DNS 防泄露设计。
 
-- 脚本文件：`Clash-Global-Extension-Script-V3.0-20261107.js`
+- 脚本文件：`Clash-Global-Extension-Script-V3.1-20261107.js`
 - 适用平台：电脑（macOS、Windows、Linux）、Android（FlClash）、iPhone / iPad / Mac（clash.md 的 Clash）
 - 入站方式：电脑只开系统代理即可，TUN 兼容；手机端始终以 VPN / 隧道方式接管流量
 
@@ -14,7 +14,7 @@
 4. [节点地区识别](#4-节点地区识别)
 5. [分流规则](#5-分流规则)
 6. [AI 客户端进程识别](#6-ai-客户端进程识别)
-7. [校园网、学术资源与坚果云](#7-校园网学术资源与坚果云)
+7. [校园网、学术资源与国内 App](#7-校园网学术资源与国内-app)
 8. [DNS 设计](#8-dns-设计)
 9. [系统代理、TUN 与手机端](#9-系统代理tun-与手机端)
 10. [隐藏真实 IP](#10-隐藏真实-ip)
@@ -32,6 +32,7 @@
 | 常用服务可单独选择出口 | YouTube、Netflix、Disney+、Spotify、TikTok、Bilibili、Telegram、X、GitHub、Microsoft、Apple、Steam 各有策略组 |
 | 本机 AI 客户端完整覆盖 | 按域名和进程双重识别，覆盖 macOS、Windows、Linux 客户端、命令行工具和 Android App |
 | 本地网络、校园网不受影响 | 本地地址、`bjut.edu.cn`（含 VPN、WebVPN）、校园 VPN 客户端、学术数据库直连 |
+| 国内 App 不绕道海外 | 手机上小红书、微信、淘宝等国内常用 App 按包名整体直连，并补充 Loyalsoldier 未收录的小红书域名 |
 | 隐藏真实 IP 和 DNS 查询 | 境外连接由节点远程解析；本地需要解析的境外域名，经代理向境外 DoH 加密查询 |
 | 电脑和手机共用一份脚本 | 只用同步代码，兼容三个客户端的脚本引擎；手机端默认开启 Fake-IP 与嗅探，电脑只开系统代理时这两项不起作用 |
 
@@ -50,7 +51,7 @@
 1. 导入机场订阅。
 2. 在该配置的「扩展」中，将「扩展模式」设为脚本模式，新建扩展脚本，粘贴本脚本全部内容并选用。
 3. 检查以下设置：
-   - 「查找进程」：设为严格（`strict`）。FlClash 用界面设置覆盖脚本中的 `find-process-mode`；设为关闭时，AI 客户端、校园 VPN、坚果云的进程规则都不会生效。
+   - 「查找进程」：设为严格（`strict`）。FlClash 用界面设置覆盖脚本中的 `find-process-mode`；设为关闭时，AI 客户端、校园 VPN、坚果云、国内 App 的进程和包名规则都不会生效。
    - DNS 的「覆写项」：不要添加任何项，否则会与脚本的 DNS 设置合并。
    - 「追加系统DNS」：关闭，否则系统 DNS 会被加到默认解析服务器中，境外域名可能经运营商 DNS 解析。
    - 「域名嗅探」覆写项与规则预设「屏蔽 STUN」：不要启用，由脚本控制。
@@ -157,7 +158,7 @@ iPhone 与 iPad 不支持按进程分流，AI App 只能靠域名分流（见 [6
 
 ## 5. 分流规则
 
-规则自上而下匹配，命中即停。整体分为 8 层：
+规则自上而下匹配，命中即停。整体分为 9 层：
 
 | 层 | 内容 | 去向 | 设计原因 |
 | --- | --- | --- | --- |
@@ -167,15 +168,19 @@ iPhone 与 iPad 不支持按进程分流，AI App 只能靠域名分流（见 [6
 | 4 | AI 服务域名：内置核心域名 + MetaCubeX 规则集（openai、anthropic、google-gemini） | 对应 AI 组 | 放在广告拦截前，避免 AI 客户端用到的统计、风控域名被误拦 |
 | 5 | AI 客户端进程（境内连接除外） | 对应 AI 组 | 客户端访问的其他境外地址也走同一出口，详见第 6 节 |
 | 6 | 常用软件、私有网络、广告拦截（Loyalsoldier） | DIRECT / REJECT | 广告照常拦截 |
-| 7 | 各服务：MetaCubeX 规则集 | 对应服务组 | 放在 `google`、`proxy`、`direct` 列表之前，YouTube、Bilibili 不会被这些列表先匹配 |
-| 8 | Loyalsoldier 白名单模式其余部分 | 见下 | 境内直连，其余代理 |
+| 7 | 国内 App：补充域名集（小红书）；Android 上按包名整体直连（已知境外域名除外） | DIRECT | 覆盖第三方 SDK、直接用 IP 连接等域名列表收录不到的连接，详见 [7.2](#72-国内-app) |
+| 8 | 各服务：MetaCubeX 规则集 | 对应服务组 | 放在 `google`、`proxy`、`direct` 列表之前，YouTube、Bilibili 不会被这些列表先匹配 |
+| 9 | Loyalsoldier 白名单模式其余部分 | 见下 | 境内直连，其余代理 |
 
-第 6 至 8 层完整顺序：
+第 6 至 9 层完整顺序：
 
 ```text
 RULE-SET,applications,DIRECT        常用下载工具等软件直连
 RULE-SET,private,DIRECT             私有网络域名
 RULE-SET,reject,REJECT              广告拦截（可关闭）
+RULE-SET,site-xiaohongshu,DIRECT    小红书补充域名
+AND,((RULE-SET,process-cn-apps),(NOT,((RULE-SET,proxy))),(NOT,((RULE-SET,google)))),DIRECT
+                                    国内 App（Android 包名），已知境外域名除外
 RULE-SET,site-biliintl,Proxy        哔哩哔哩国际版
 RULE-SET,site-youtube,YouTube
 RULE-SET,site-netflix,Netflix
@@ -261,7 +266,9 @@ AND,(
 
 `find-process-mode` 使用 `strict`：只在规则需要时查找进程。已实测嵌套在逻辑规则中的进程规则能正常触发查找，无需改为每个连接都查找的 `always`。
 
-## 7. 校园网、学术资源与坚果云
+## 7. 校园网、学术资源与国内 App
+
+### 7.1 校园网、学术资源与坚果云
 
 | 对象 | 处理 | 说明 |
 | --- | --- | --- |
@@ -275,6 +282,19 @@ AND,(
 - **电脑上使用校园 VPN**：请只开系统代理、不开 TUN。开启 TUN 后，VPN 客户端的流量和系统 DNS 都可能被接管，导致校内地址无法访问。
 - **手机上使用校园 VPN**：Android 和 iOS 同一时间只能运行一个 VPN，MotionPro 与 FlClash / Clash 不能同时开启；WebVPN 不受影响。
 
+### 7.2 国内 App
+
+手机上所有 App 的流量都经过 mihomo。国内 App 除了主域名，还会用到第三方 SDK 域名、新上线的域名，或通过 HTTPDNS 直接用 IP 连接。这些连接不在 Loyalsoldier `direct` 列表中时，会经境外 DoH 解析后按 IP 判断；拿到境外 CDN 地址就会落到 `Proxy`，表现为小红书等 App 的部分连接走了境外节点。脚本分两层处理：
+
+| 处理 | 平台 | 说明 |
+| --- | --- | --- |
+| 按包名整体直连 | Android（FlClash） | `CN_APP_PACKAGES` 中的 App，所有连接直连；Loyalsoldier `proxy`、`google` 列表中的境外域名除外（如在微信里打开 YouTube 链接仍走代理） |
+| 补充域名集 | 全部平台 | MetaCubeX `xiaohongshu` 规则集，直连并用国内 DoH 解析；补上 Loyalsoldier 未收录的 `xhsrcdn.com`、`redelight.cn` 等 |
+
+`CN_APP_PACKAGES` 默认收录小红书、微信、QQ、企业微信、支付宝、云闪付、淘宝、天猫、闲鱼、京东、拼多多、美团、大众点评、饿了么、抖音、快手、今日头条、微博、知乎、百度、百度网盘、高德地图、滴滴出行、铁路 12306、携程、网易云音乐、QQ 音乐、钉钉、飞书。哔哩哔哩不在其中，仍由 `Bilibili` 组控制。
+
+这条规则放在广告拦截之后，国内 App 里的广告照常拦截；放在 AI 规则之后，在国内 App 里访问 AI 服务仍走 AI 组。需要按包名分流时，FlClash 的「查找进程」必须设为严格。其他 App 仍走境外节点时，在客户端「连接」页查到它的包名后加入 `CN_APP_PACKAGES`。
+
 ## 8. DNS 设计
 
 ### 8.1 解析分工
@@ -284,7 +304,7 @@ AND,(
 | 无点号主机名、本地域名、`bjut.edu.cn` | 系统 DNS | 本机 |
 | 学术数据库、坚果云 | 阿里 `223.5.5.5`、腾讯 `1.12.12.12` DoH | DIRECT |
 | AI 域名及 AI 规则集 | Cloudflare `1.1.1.1`、Google `8.8.8.8` DoH | 对应 AI 组 |
-| 境内（private、direct、apple、icloud、bilibili、microsoft@cn、steam@cn 规则集） | 阿里、腾讯 DoH | DIRECT |
+| 境内（private、direct、apple、icloud、xiaohongshu、bilibili、microsoft@cn、steam@cn 规则集） | 阿里、腾讯 DoH | DIRECT |
 | 机场节点域名 | 阿里、腾讯 DoH | DIRECT |
 | 直连流量 | 按上述分工（`direct-nameserver-follow-policy: true`） | DIRECT |
 | 其余全部域名 | Cloudflare、Google DoH | Proxy |
@@ -378,6 +398,8 @@ TUN 模式和手机端，发往境外的 STUN 请求会按规则走 `Proxy`，�
 | `CAMPUS_VPN_PROCESS` | 校园 VPN 客户端进程名正则，直连 |
 | `ACADEMIC_DOMAINS` | 学术数据库域名，直连 |
 | `APP_DIRECT_DOMAINS` / `APP_DIRECT_PROCESS` / `APP_DIRECT_PACKAGES` | 国内应用（坚果云）的域名、电脑端进程名正则、Android 包名，直连 |
+| `CN_APP_PACKAGES` | 国内 App 的 Android 包名，整体直连（已知境外域名除外）；包名可在 FlClash「连接」页查到 |
+| `CN_SITE_SETS` | 国内 App 补充域名集（MetaCubeX geosite 名称），直连并用国内 DNS |
 | `EXTRA_DIRECT_DOMAINS` | 额外直连域名 |
 | `EXTRA_DIRECT_CIDRS` | 额外直连 IP 段 |
 | `EXTRA_PROXY_DOMAINS` | 额外走 `Proxy` 的域名 |
@@ -402,6 +424,7 @@ TUN 模式和手机端，发往境外的 STUN 请求会按规则走 `Proxy`，�
 - iPhone、iPad 不支持按进程分流；Gemini CLI 以 node 运行，只能靠域名分流。
 - 电脑只开系统代理时，不覆盖 UDP 和不读取系统代理的程序。
 - Bilibili 切到 `hk` / `tw` 能否解锁港澳台内容取决于节点，未实测。
+- 国内 App 包名直连只在 Android 上生效；iPhone、iPad 上只能靠域名，App 使用未收录的域名或直接用 IP 连接时，仍可能落到 `Proxy`，需要把域名补进 `EXTRA_DIRECT_DOMAINS`。
 - 策略组图标托管在 raw.githubusercontent.com 和 unpkg.com，代理未连通时可能无法显示，不影响分流。
 
 ## 14. 参考资料
