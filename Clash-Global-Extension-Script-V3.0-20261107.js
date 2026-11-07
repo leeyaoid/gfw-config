@@ -353,16 +353,27 @@ function main(config, profileName) {
   const tag = typeof profileName === "string" && profileName ? `[${profileName}] ` : "";
   const proxies = config && Array.isArray(config.proxies) ? config.proxies : [];
 
-  // 与策略组或内置出站重名的节点会导致引用混乱，跳过并提示
+  // 与策略组或内置出站重名的节点会使内核拒绝整个配置，改名后照常使用
   const groupNames = new Set([...AI_GROUPS, G.PROXY, G.AUTO, ...SERVICES.map(s => s.name), ...REGION_DISPLAY_ORDER, "DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"]);
+  const usedNames = new Set(proxies.map(p => p && p.name));
+  const renamed = {};
+  for (const p of proxies) {
+    const n = p && p.name;
+    if (typeof n !== "string" || !groupNames.has(n)) continue;
+    let alt = `${n} 节点`;
+    for (let i = 2; usedNames.has(alt) || groupNames.has(alt); i++) alt = `${n} 节点${i}`;
+    p.name = alt;
+    usedNames.add(alt);
+    renamed[n] = alt;
+    log(`${tag}节点名与策略组名冲突，已改名：${n} → ${alt}`);
+  }
+  for (const p of proxies) {
+    if (p && typeof p["dialer-proxy"] === "string" && renamed[p["dialer-proxy"]]) p["dialer-proxy"] = renamed[p["dialer-proxy"]];
+  }
   const nodes = [];
   for (const p of proxies) {
     const n = p && p.name;
     if (typeof n !== "string" || INFO_NODE_RE.test(n)) continue;
-    if (groupNames.has(n)) {
-      log(`${tag}节点名与策略组名冲突，已跳过：${n}`);
-      continue;
-    }
     nodes.push(n);
   }
   if (nodes.length === 0) {
